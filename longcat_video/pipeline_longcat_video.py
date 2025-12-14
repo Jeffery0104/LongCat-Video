@@ -415,6 +415,10 @@ class LongCatVideoPipeline:
         output_type: Optional[str] = "np",
         attention_kwargs: Optional[Dict[str, Any]] = None,
         max_sequence_length: int = 512,
+        prompt_embeds: Optional[torch.Tensor] = None,
+        negative_prompt_embeds: Optional[torch.Tensor] = None,
+        prompt_attention_mask: Optional[torch.Tensor] = None,
+        negative_prompt_attention_mask: Optional[torch.Tensor] = None,
     ):
         r"""
         Generates video frames from text prompt using diffusion process.
@@ -448,6 +452,14 @@ class LongCatVideoPipeline:
                 Additional attention parameters for the model.
             max_sequence_length (`int`, *optional*, defaults to 512):
                 Maximum sequence length for text encoding.
+            prompt_embeds (`torch.Tensor`, *optional*):
+                Pre-generated text embeddings.
+            negative_prompt_embeds (`torch.Tensor`, *optional*):
+                Pre-generated negative text embeddings.
+            prompt_attention_mask (`torch.Tensor`, *optional*):
+                Attention mask for prompt embeddings.
+            negative_prompt_attention_mask (`torch.Tensor`, *optional*):
+                Attention mask for negative prompt embeddings.
 
         Returns:
             np.ndarray or torch.Tensor:
@@ -490,25 +502,37 @@ class LongCatVideoPipeline:
         # 3. Encode input prompt
         dit_dtype = self.dit.dtype
 
-        if context_parallel_util.get_cp_rank() == 0:
-            (
-                prompt_embeds, 
-                prompt_attention_mask, 
-                negative_prompt_embeds, 
-                negative_prompt_attention_mask,
-            ) = self.encode_prompt(
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                do_classifier_free_guidance=self.do_classifier_free_guidance,
-                num_videos_per_prompt=num_videos_per_prompt,
-                max_sequence_length=max_sequence_length,
-                dtype=dit_dtype,
-                device=device,
-            )
-            if context_parallel_util.get_cp_size() > 1:
+        if prompt_embeds is None:
+            if context_parallel_util.get_cp_rank() == 0:
+                (
+                    prompt_embeds, 
+                    prompt_attention_mask, 
+                    negative_prompt_embeds, 
+                    negative_prompt_attention_mask,
+                ) = self.encode_prompt(
+                    prompt=prompt,
+                    negative_prompt=negative_prompt,
+                    do_classifier_free_guidance=self.do_classifier_free_guidance,
+                    num_videos_per_prompt=num_videos_per_prompt,
+                    max_sequence_length=max_sequence_length,
+                    dtype=dit_dtype,
+                    device=device,
+                )
+                if context_parallel_util.get_cp_size() > 1:
+                    context_parallel_util.cp_broadcast(prompt_embeds)
+                    context_parallel_util.cp_broadcast(prompt_attention_mask)
+                    if self.do_classifier_free_guidance:
+                        context_parallel_util.cp_broadcast(negative_prompt_embeds)
+                        context_parallel_util.cp_broadcast(negative_prompt_attention_mask)
+            elif context_parallel_util.get_cp_size() > 1:
+                caption_channels = self.text_encoder.config.d_model
+                prompt_embeds = torch.zeros([batch_size, 1, max_sequence_length, caption_channels], dtype=dit_dtype, device=device)
+                prompt_attention_mask = torch.zeros([batch_size, max_sequence_length], dtype=torch.int64, device=device)
                 context_parallel_util.cp_broadcast(prompt_embeds)
                 context_parallel_util.cp_broadcast(prompt_attention_mask)
                 if self.do_classifier_free_guidance:
+                    negative_prompt_embeds = torch.zeros([batch_size, 1, max_sequence_length, caption_channels], dtype=dit_dtype, device=device)
+                    negative_prompt_attention_mask = torch.zeros([batch_size, max_sequence_length], dtype=torch.int64, device=device)
                     context_parallel_util.cp_broadcast(negative_prompt_embeds)
                     context_parallel_util.cp_broadcast(negative_prompt_attention_mask)
         elif context_parallel_util.get_cp_size() > 1:

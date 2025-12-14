@@ -7,7 +7,14 @@ from einops import rearrange
 
 from .rope_3d import RotaryPositionalEmbedding
 from .blocks import RMSNorm_FP32
-from ..block_sparse_attention.bsa_interface import flash_attn_bsa_3d
+# from ..block_sparse_attention.bsa_interface import flash_attn_bsa_3d
+try:
+    from ..block_sparse_attention.bsa_interface import flash_attn_bsa_3d
+    BSA_AVAILABLE = True
+except Exception:
+    flash_attn_bsa_3d = None
+    BSA_AVAILABLE = False
+    print("Warning: block-sparse attention (triton) not available. Falling back to dense attention when requested.")
 from ..context_parallel.ulysses_wrapper import ulysses_wrapper
 
 
@@ -55,7 +62,17 @@ class Attention(nn.Module):
         B, H, SQ, D = q.shape
         _, _, SKV, _ = k.shape
 
-        if self.enable_bsa and shape[0] > 1: # bsa will not be used in image training / sampling
+        # if self.enable_bsa and shape[0] > 1: # bsa will not be used in image training / sampling
+        #     assert self.bsa_params is not None
+        #     _, H, W = shape
+        #     assert H % self.cp_split_hw[0] == 0, W % self.cp_split_hw[1] == 0
+        #     H, W = H // self.cp_split_hw[0], W // self.cp_split_hw[1]
+        #     Tq = SQ // (H * W)
+        #     Tk = SKV // (H * W)
+        #     latent_shape_q = (Tq, H, W)
+        #     latent_shape_k = (Tk, H, W)
+        #     x = flash_attn_bsa_3d(q, k, v, latent_shape_q, latent_shape_k, **self.bsa_params)
+        if self.enable_bsa and shape[0] > 1:  # bsa will not be used in image training / sampling
             assert self.bsa_params is not None
             _, H, W = shape
             assert H % self.cp_split_hw[0] == 0, W % self.cp_split_hw[1] == 0
@@ -64,7 +81,17 @@ class Attention(nn.Module):
             Tk = SKV // (H * W)
             latent_shape_q = (Tq, H, W)
             latent_shape_k = (Tk, H, W)
-            x = flash_attn_bsa_3d(q, k, v, latent_shape_q, latent_shape_k, **self.bsa_params)
+
+            if not BSA_AVAILABLE or flash_attn_bsa_3d is None:
+                # Triton / BSA not available — use dense attention fallback (slow, but works on MPS/CPU)
+                # q, k, v shapes: [B, H, S, D]
+                # compute scaled dot-product attention per head
+                scale = self.scale
+                scores = torch.matmul(q, k.transpose(-1, -2)) * scale  # [B, H, Sq, Sk]
+                attn_weights = torch.softmax(scores, dim=-1)
+                x = torch.matmul(attn_weights, v)  # [B, H, Sq, D]
+            else:
+                x = flash_attn_bsa_3d(q, k, v, latent_shape_q, latent_shape_k, **self.bsa_params)
         elif self.enable_flashattn3:
             from flash_attn_interface import flash_attn_func
             q = rearrange(q, "B H S D -> B S H D").contiguous()
@@ -100,7 +127,10 @@ class Attention(nn.Module):
             x = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None, op=None,)
             x = rearrange(x, "B M H K -> B H M K")
         else:
-            raise RuntimeError("Unsupported attention operations.")
+            # Fallback to vanilla PyTorch SDPA (MPS compatible)
+            x = torch.nn.functional.scaled_dot_product_attention(
+                q, k, v, scale=self.scale
+            )
 
         return x
 
@@ -245,7 +275,31 @@ class MultiHeadCrossAttention(nn.Module):
             attn_bias = xformers.ops.fmha.attn_bias.BlockDiagonalMask.from_seqlens([N] * B, kv_seqlen)
             x = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=attn_bias)
         else:
-            raise RuntimeError("Unsupported attention operations.")
+            # Fallback to vanilla PyTorch SDPA with Varlen support (manual batch loop)
+            B, N, C = x.shape
+            q = q.view(B, N, self.num_heads, self.head_dim).transpose(1, 2)
+            # k, v are packed: [1, Total_Tokens, H, D]
+            
+            output_list = []
+            offset = 0
+            for i in range(B):
+                L = kv_seqlen[i]
+                # Slice packed k/v for this batch item
+                k_i = k[:, offset:offset+L, :, :].transpose(1, 2) # [1, H, L, D]
+                v_i = v[:, offset:offset+L, :, :].transpose(1, 2) # [1, H, L, D]
+                
+                q_i = q[i:i+1] # [1, H, N, D]
+                
+                # Attn
+                scale = self.head_dim**-0.5
+                x_i = torch.nn.functional.scaled_dot_product_attention(
+                    q_i, k_i, v_i, scale=scale
+                )
+                output_list.append(x_i)
+                offset += L
+            
+            x = torch.cat(output_list, dim=0) # [B, H, N, D]
+            x = x.transpose(1, 2).contiguous()
 
 
         x = x.view(B, -1, C)

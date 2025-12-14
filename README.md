@@ -21,15 +21,17 @@
 </div>
 
 ## Model Introduction
-We introduce LongCat-Video, a foundational video generation model with 13.6B parameters, delivering strong performance across *Text-to-Video*, *Image-to-Video*, and *Video-Continuation* generation tasks. It particularly excels in efficient and high-quality long video generation, representing our first step toward world models.
+
+We introduce LongCat-Video, a foundational video generation model with 13.6B parameters, delivering strong performance across _Text-to-Video_, _Image-to-Video_, and _Video-Continuation_ generation tasks. It particularly excels in efficient and high-quality long video generation, representing our first step toward world models.
 
 ### Key Features
-- 🌟 **Unified architecture for multiple tasks**: LongCat-Video unifies *Text-to-Video*, *Image-to-Video*, and *Video-Continuation* tasks within a single video generation framework. It natively supports all these tasks with a single model and consistently delivers strong performance across each individual task.
-- 🌟 **Long video generation**: LongCat-Video is natively pretrained on *Video-Continuation* tasks, enabling it to produce minutes-long videos without color drifting or quality degradation.
+
+- 🌟 **Unified architecture for multiple tasks**: LongCat-Video unifies _Text-to-Video_, _Image-to-Video_, and _Video-Continuation_ tasks within a single video generation framework. It natively supports all these tasks with a single model and consistently delivers strong performance across each individual task.
+- 🌟 **Long video generation**: LongCat-Video is natively pretrained on _Video-Continuation_ tasks, enabling it to produce minutes-long videos without color drifting or quality degradation.
 - 🌟 **Efficient inference**: LongCat-Video generates $720p$, $30fps$ videos within minutes by employing a coarse-to-fine generation strategy along both the temporal and spatial axes. Block Sparse Attention further enhances efficiency, particularly at high resolutions
 - 🌟 **Strong performance with multi-reward RLHF**: Powered by multi-reward Group Relative Policy Optimization (GRPO), comprehensive evaluations on both internal and public benchmarks demonstrate that LongCat-Video achieves performance comparable to leading open-source video generation models as well as the latest commercial solutions.
 
-For more detail, please refer to the comprehensive [***LongCat-Video Technical Report***](https://arxiv.org/abs/2510.22200).
+For more detail, please refer to the comprehensive [**_LongCat-Video Technical Report_**](https://arxiv.org/abs/2510.22200).
 
 ## 🎥 Teaser Video
 
@@ -59,9 +61,9 @@ conda activate longcat-video
 pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
 
 # install flash-attn-2
-pip install ninja 
-pip install psutil 
-pip install packaging 
+pip install ninja
+pip install psutil
+pip install packaging
 pip install flash_attn==2.7.4.post1
 
 # install other requirements
@@ -72,14 +74,15 @@ FlashAttention-2 is enabled in the model config by default; you can also change 
 
 ### Model Download
 
-| Models | Download Link |
-| --- | --- |
+| Models        | Download Link                                                          |
+| ------------- | ---------------------------------------------------------------------- |
 | LongCat-Video | 🤗 [Huggingface](https://huggingface.co/meituan-longcat/LongCat-Video) |
 
 Download models using huggingface-cli:
+
 ```shell
 pip install "huggingface_hub[cli]"
-huggingface-cli download meituan-longcat/LongCat-Video --local-dir ./weights/LongCat-Video
+hf download meituan-longcat/LongCat-Video --local-dir ./weights/LongCat-Video
 ```
 
 ### Run Text-to-Video
@@ -139,38 +142,38 @@ torchrun --nproc_per_node=2 run_demo_interactive_video.py --context_parallel_siz
 streamlit run ./run_streamlit.py --server.fileWatcherType none --server.headless=false
 ```
 
-
-
 ## Evaluation Results
 
 ### Text-to-Video
-The *Text-to-Video* MOS evaluation results on our internal benchmark.
 
-| **MOS score** | **Veo3** | **PixVerse-V5** | **Wan 2.2-T2V-A14B** | **LongCat-Video** |
-|---------------|-------------------|--------------------|-------------|-------------|
-| **Accessibility** | Proprietary | Proprietary | Open Source | Open Source |
-| **Architecture** | - | - | MoE | Dense |
-| **# Total Params** | - | - | 28B | 13.6B |
-| **# Activated Params** | - | - | 14B | 13.6B |
-| Text-Alignment↑ | 3.99 | 3.81 | 3.70 | 3.76 |
-| Visual Quality↑ | 3.23 | 3.13 | 3.26 | 3.25 |
-| Motion Quality↑ | 3.86 | 3.81 | 3.78 | 3.74 |
-| Overall Quality↑ | 3.48 | 3.36 | 3.35 | 3.38 |
+The _Text-to-Video_ MOS evaluation results on our internal benchmark.
+
+| **MOS score**          | **Veo3**    | **PixVerse-V5** | **Wan 2.2-T2V-A14B** | **LongCat-Video** |
+| ---------------------- | ----------- | --------------- | -------------------- | ----------------- |
+| **Accessibility**      | Proprietary | Proprietary     | Open Source          | Open Source       |
+| **Architecture**       | -           | -               | MoE                  | Dense             |
+| **# Total Params**     | -           | -               | 28B                  | 13.6B             |
+| **# Activated Params** | -           | -               | 14B                  | 13.6B             |
+| Text-Alignment↑        | 3.99        | 3.81            | 3.70                 | 3.76              |
+| Visual Quality↑        | 3.23        | 3.13            | 3.26                 | 3.25              |
+| Motion Quality↑        | 3.86        | 3.81            | 3.78                 | 3.74              |
+| Overall Quality↑       | 3.48        | 3.36            | 3.35                 | 3.38              |
 
 ### Image-to-Video
-The *Image-to-Video* MOS evaluation results on our internal benchmark.
 
-| **MOS score** | **Seedance 1.0** | **Hailuo-02** | **Wan 2.2-I2V-A14B** | **LongCat-Video** |
-|---------------|-------------------|--------------------|-------------|-------------|
-| **Accessibility** | Proprietary | Proprietary | Open Source | Open Source |
-| **Architecture** | - | - | MoE | Dense |
-| **# Total Params** | - | - | 28B | 13.6B |
-| **# Activated Params** | - | - | 14B | 13.6B |
-| Image-Alignment↑ | 4.12 | 4.18 | 4.18 | 4.04 |
-| Text-Alignment↑ | 3.70 | 3.85 | 3.33 | 3.49 |
-| Visual Quality↑ | 3.22 | 3.18 | 3.23 | 3.27 |
-| Motion Quality↑ | 3.77 | 3.80 | 3.79 | 3.59 |
-| Overall Quality↑ | 3.35 | 3.27 | 3.26 | 3.17 |
+The _Image-to-Video_ MOS evaluation results on our internal benchmark.
+
+| **MOS score**          | **Seedance 1.0** | **Hailuo-02** | **Wan 2.2-I2V-A14B** | **LongCat-Video** |
+| ---------------------- | ---------------- | ------------- | -------------------- | ----------------- |
+| **Accessibility**      | Proprietary      | Proprietary   | Open Source          | Open Source       |
+| **Architecture**       | -                | -             | MoE                  | Dense             |
+| **# Total Params**     | -                | -             | 28B                  | 13.6B             |
+| **# Activated Params** | -                | -             | 14B                  | 13.6B             |
+| Image-Alignment↑       | 4.12             | 4.18          | 4.18                 | 4.04              |
+| Text-Alignment↑        | 3.70             | 3.85          | 3.33                 | 3.49              |
+| Visual Quality↑        | 3.22             | 3.18          | 3.23                 | 3.27              |
+| Motion Quality↑        | 3.77             | 3.80          | 3.79                 | 3.59              |
+| Overall Quality↑       | 3.35             | 3.27          | 3.26                 | 3.17              |
 
 ## Community Works
 
@@ -178,36 +181,36 @@ Community works are welcome! Please PR or inform us in Issue to add your work.
 
 - [CacheDiT](https://github.com/vipshop/cache-dit) offers Fully Cache Acceleration support for LongCat-Video with DBCache and TaylorSeer, achieved nearly 1.7x speedup without obvious loss of precision. Visit their [example](https://github.com/vipshop/cache-dit/blob/main/examples/pipeline/run_longcat_video.py) for more details.
 
-
 ## License Agreement
 
-The **model weights** are released under the **MIT License**. 
+The **model weights** are released under the **MIT License**.
 
-Any contributions to this repository are licensed under the MIT License, unless otherwise stated. This license does not grant any rights to use Meituan trademarks or patents. 
+Any contributions to this repository are licensed under the MIT License, unless otherwise stated. This license does not grant any rights to use Meituan trademarks or patents.
 
 See the [LICENSE](LICENSE) file for the full license text.
 
+## Usage Considerations
 
-## Usage Considerations 
-This model has not been specifically designed or comprehensively evaluated for every possible downstream application. 
+This model has not been specifically designed or comprehensively evaluated for every possible downstream application.
 
-Developers should take into account the known limitations of large language models, including performance variations across different languages, and carefully assess accuracy, safety, and fairness before deploying the model in sensitive or high-risk scenarios. 
-It is the responsibility of developers and downstream users to understand and comply with all applicable laws and regulations relevant to their use case, including but not limited to data protection, privacy, and content safety requirements. 
+Developers should take into account the known limitations of large language models, including performance variations across different languages, and carefully assess accuracy, safety, and fairness before deploying the model in sensitive or high-risk scenarios.
+It is the responsibility of developers and downstream users to understand and comply with all applicable laws and regulations relevant to their use case, including but not limited to data protection, privacy, and content safety requirements.
 
-Nothing in this Model Card should be interpreted as altering or restricting the terms of the MIT License under which the model is released. 
+Nothing in this Model Card should be interpreted as altering or restricting the terms of the MIT License under which the model is released.
 
 ## Citation
+
 We kindly encourage citation of our work if you find it useful.
 
 ```
 @misc{meituanlongcatteam2025longcatvideotechnicalreport,
-      title={LongCat-Video Technical Report}, 
+      title={LongCat-Video Technical Report},
       author={Meituan LongCat Team and Xunliang Cai and Qilong Huang and Zhuoliang Kang and Hongyu Li and Shijun Liang and Liya Ma and Siyu Ren and Xiaoming Wei and Rixu Xie and Tong Zhang},
       year={2025},
       eprint={2510.22200},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2510.22200}, 
+      url={https://arxiv.org/abs/2510.22200},
 }
 ```
 
@@ -215,6 +218,12 @@ We kindly encourage citation of our work if you find it useful.
 
 We would like to thank the contributors to the [Wan](https://huggingface.co/Wan-AI), [UMT5-XXL](https://huggingface.co/google/umt5-xxl), [Diffusers](https://github.com/huggingface/diffusers) and [HuggingFace](https://huggingface.co) repositories, for their open research.
 
-
 ## Contact
+
 Please contact us at <a href="mailto:longcat-team@meituan.com">longcat-team@meituan.com</a> or join our WeChat Group if you have any questions.
+
+how to run in macbook pro
+
+conda activate longcat
+export PYTORCH_ENABLE_MPS_FALLBACK=1
+python run_local_mps_demo.py --checkpoint_dir weights/LongCat-Video --height 128 --width 128 --num_frames 4 --num_inference_steps 8
